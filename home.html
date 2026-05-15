@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DocSec — My Documents</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+<style>
+/* Neon Glow */
+.glow-hover:hover {
+  box-shadow: 0 0 12px #4cc9f0, 0 0 22px #4361ee;
+  transform: translateY(-2px);
+}
+
+/* DropZone */
+#dropZone {
+  border: 2px dashed rgba(255,255,255,0.25);
+  border-radius: 14px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: .3s;
+  background: rgba(255,255,255,0.05);
+}
+#dropZone.dragging {
+  border-color: #4cc9f0;
+  background: rgba(67,97,238,0.25);
+  box-shadow: 0 0 12px #4cc9f0, 0 0 32px #4361ee;
+}
+#dropZone i { font-size: 48px; margin-bottom: 10px; color: #4cc9f0; }
+#dropZone span { opacity: .7; }
+
+.fileBtn {
+  margin-top: 12px;
+  display: inline-block;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #4361ee, #3a0ca3);
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#fileInput { display: none; }
+
+/* Color Palette */
+:root {
+  --primary: #4361ee;
+  --secondary: #3a0ca3;
+  --success: #4cc9f0;
+  --warning: #f72585;
+  --dark: #1a1a2e;
+}
+
+body {
+  background: linear-gradient(135deg, #06070f, #0f0c29, #1a1a2e);
+  color: white;
+  min-height: 100vh;
+  padding: 20px;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.container { max-width: 900px; margin: auto; }
+
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 2px solid rgba(255,255,255,0.15);
+}
+.header .brand { display: flex; gap: 10px; align-items: center; font-size: 26px; font-weight: 700; }
+
+button {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: .3s;
+}
+button:hover { box-shadow: 0 0 12px #4cc9f0, 0 0 20px #3a0ca3; }
+
+.section {
+  margin-top: 25px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 14px;
+  padding: 28px;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+}
+
+/* Terminal Window */
+#terminalBox {
+  margin-top: 14px;
+  background: #05060c;
+  border: 1px solid rgba(76,201,240,0.4);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 120px;
+  font-family: "Consolas", "Courier New", monospace;
+  color: #4cc9f0;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-y: auto;
+  white-space: pre-line;
+  position: relative;
+  max-height: 300px;
+}
+
+/* Blinking cursor */
+.cursor {
+  display: inline-block;
+  width: 8px;
+  background: #4cc9f0;
+  animation: blink 0.8s infinite;
+}
+@keyframes blink {
+  0%,50% { opacity: 1; }
+  51%,100% { opacity: 0; }
+}
+
+#progressBarContainer {
+  width: 100%;
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
+  height: 8px;
+  margin-top: 12px;
+  display: none;
+}
+#progressBar {
+  width: 0%;
+  height: 100%;
+  background: #4cc9f0;
+  border-radius: 6px;
+  transition: width .2s linear;
+}
+
+.file-entry {
+  display: flex; justify-content: space-between; padding: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.badge { background: rgba(76,201,240,0.12); padding: 6px 12px; border-radius: 14px; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="brand"><i class="fas fa-shield-alt"></i> DOCSEC</div>
+    <div>Logged in as <strong id="user"></strong>
+      <button onclick="logout()" style="margin-left: 12px; background: var(--warning);">Logout</button>
+    </div>
+  </div>
+
+  <div class="section glow-hover">
+    <h3><i class="fas fa-cloud-upload-alt"></i> Upload PDF</h3>
+
+    <div id="dropZone">
+      <i class="fas fa-file-arrow-up"></i>
+      <p>Drag & Drop PDF here</p>
+      <span>or</span>
+      <label for="fileInput" class="fileBtn">Choose File</label>
+      <input type="file" id="fileInput" accept="application/pdf">
+    </div>
+
+    <p id="selectedFile"></p>
+
+    <div id="progressBarContainer"><div id="progressBar"></div></div>
+
+    <div id="terminalBox"></div>
+
+    <button onclick="uploadFile()" style="margin-top: 14px;"><i class="fas fa-upload"></i> Upload</button>
+    <p id="uploadMsg"></p>
+  </div>
+
+  <div class="section glow-hover">
+    <h3><i class="fas fa-folder-open"></i> Your Files</h3>
+    <div id="filesList">Loading...</div>
+  </div>
+
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+const username = localStorage.getItem("username");
+if(!username) location.href = "login.html";
+document.getElementById("user").innerText = username;
+
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const selectedFileLabel = document.getElementById("selectedFile");
+const terminal = document.getElementById("terminalBox");
+const progressBar = document.getElementById("progressBar");
+const progressBarContainer = document.getElementById("progressBarContainer");
+
+/* Drag & Drop */
+dropZone.addEventListener("dragover", e=>{e.preventDefault();dropZone.classList.add("dragging")});
+dropZone.addEventListener("dragleave", ()=>dropZone.classList.remove("dragging"));
+dropZone.addEventListener("drop", e=>{
+  e.preventDefault(); dropZone.classList.remove("dragging");
+  if(e.dataTransfer.files.length){ fileInput.files=e.dataTransfer.files; updateSelected(); }
+});
+dropZone.addEventListener("click", e=>{ if(e.target===dropZone) fileInput.click(); });
+fileInput.addEventListener("change", updateSelected);
+
+function updateSelected(){
+  if(fileInput.files.length){
+    selectedFileLabel.textContent="Selected: "+fileInput.files[0].name;
+    selectedFileLabel.style.color="#4cc9f0";
+  }
+}
+
+let stopAnimation = false;
+
+/* Type out text character by character */
+function typeLine(text){
+  return new Promise(resolve=>{
+    let i = 0;
+    const line = document.createElement('div');
+    terminal.appendChild(line);
+    
+    const interval = setInterval(()=>{
+      if(stopAnimation){ 
+        clearInterval(interval);
+        line.textContent = text;
+        resolve();
+        return;
+      }
+
+      if(i <= text.length){
+        line.innerHTML = text.substring(0, i) + '<span class="cursor"></span>';
+        i++;
+      } else {
+        clearInterval(interval);
+        line.innerHTML = text;
+        resolve();
+      }
+    }, 30);
+  });
+}
+
+/* Animate all steps sequentially */
+async function animateSteps(steps) {
+  for(const step of steps) {
+    if(stopAnimation) break;
+    await typeLine(step);
+    await new Promise(r => setTimeout(r, 400));
+  }
+}
+
+/* Upload logic */
+async function uploadFile(){
+  const file=fileInput.files[0];
+  const msg=document.getElementById("uploadMsg");
+  if(!file){ msg.textContent="Select a PDF"; return; }
+
+  terminal.innerHTML = "";
+  stopAnimation = false;
+  progressBarContainer.style.display="block";
+  progressBar.style.width="0%";
+  msg.textContent="";
+
+  const steps = [
+    "📤 Uploading file...",
+    "📄 Running OCR...",
+    "🔍 Extracting text from PDF...",
+    "📋 Processing pages...",
+    "🤖 Identifying Document Type (AI)...",
+    "🧠 Sending to Ollama LLM...",
+    "⚙️  Analyzing content...",
+    "🔬 Classification in progress...",
+    "📊 Extracting Metadata...",
+    "🔐 Encrypting PDF...",
+    "💾 Storing Securely...",
+    "✨ Finalizing..."
+  ];
+
+  // Start animation in parallel
+  animateSteps(steps);
+
+  const form=new FormData();
+  form.append("username",username);
+  form.append("file",file);
+
+  const xhr=new XMLHttpRequest();
+  xhr.open("POST", API+"/upload");
+
+  xhr.upload.onprogress=e=>{
+    if(e.lengthComputable){ 
+      const pct = (e.loaded/e.total)*100;
+      progressBar.style.width = pct + "%"; 
+    }
+  };
+
+  xhr.onload=()=>{
+    stopAnimation = true;
+    
+    try {
+      const res=JSON.parse(xhr.responseText);
+      if(res.status==="success"){
+        terminal.innerHTML += "\n\n✅ Completed Successfully\n";
+        terminal.innerHTML += "\n📊 Classification Results:\n";
+        terminal.innerHTML += `   • Type: ${res.doc_type || 'unknown'}\n`;
+        terminal.innerHTML += `   • Confidence: ${Math.round((res.confidence||0)*100)}%\n`;
+        terminal.innerHTML += `   • Source: ${res.source || 'none'}\n`;
+        terminal.innerHTML += `   • Hash: ${res.hash || 'N/A'}\n`;
+        terminal.innerHTML += `   • Explanation: ${res.explanation || 'No explanation'}\n`;
+        
+        msg.style.color="#4cc9f0";
+        msg.innerHTML = `
+          <div style="text-align: left; background: rgba(76,201,240,0.1); padding: 14px; border-radius: 10px; margin-top: 10px; border-left: 4px solid #4cc9f0;">
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #4cc9f0;">📄 Detected:</strong> 
+              <span style="font-size: 15px;">${res.doc_type}</span> 
+              <span style="background: rgba(76,201,240,0.2); padding: 3px 8px; border-radius: 6px; font-size: 12px;">
+                ${Math.round((res.confidence||0)*100)}%
+              </span>
+              <span style="font-size: 12px; opacity: 0.8;"> via ${res.source}</span>
+            </div>
+            
+            <div style="margin-bottom: 6px;">
+              <strong style="color: #4cc9f0;">🔑 Hash:</strong><br>
+              <code style="font-size: 10px; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 3px; word-break: break-all; color: #4cc9f0;">
+                ${res.hash || 'N/A'}
+              </code>
+            </div>
+            
+            <div>
+              <strong style="color: #4cc9f0;">💡 Explanation:</strong><br>
+              <em style="font-size: 13px; opacity: 0.9; display: block; margin-top: 3px;">
+                ${res.explanation || 'No explanation available'}
+              </em>
+            </div>
+          </div>
+        `;
+        
+        selectedFileLabel.textContent="";
+        fileInput.value="";
+        progressBar.style.width="100%";
+        loadFiles();
+      } 
+      
+      else {
+        terminal.innerHTML += "\n\n❌ Error: " + (res.message || "Upload failed") + "\n";
+        msg.style.color="#f72585";
+        msg.textContent=res.message||"Upload failed";
+      }
+    } catch(e) {
+      terminal.innerHTML += "\n\n❌ Error parsing response\n";
+      msg.style.color="#f72585";
+      msg.textContent="Upload failed";
+    }
+  };
+
+  xhr.onerror=()=>{
+    stopAnimation = true;
+    terminal.innerHTML += "\n\n❌ Network Error\n";
+    msg.style.color="#f72585";
+    msg.textContent="Network error - check if server is running";
+  };
+
+  xhr.send(form);
+}
+
+/* Load Files */
+function typeBadge(type,confidence){
+  const icon="📄";
+  const conf=confidence?` (${Math.round(confidence*100)}%)`:"";
+  return `<span class="badge">${icon} ${type}${conf}</span>`;
+}
+
+async function loadFiles(){
+  const box=document.getElementById("filesList");
+  box.innerHTML="Loading...";
+  const res=await fetch(`${API}/user/files/${username}`);
+  const files=await res.json();
+  box.innerHTML=files.length?"":"<em>No files yet</em>";
+  files.forEach(f=>box.innerHTML+=`
+    <div class="file-entry glow-hover">
+      <div><strong>${f.orig_filename || f.filename}</strong><br>${typeBadge(f.type,f.confidence)}</div>
+      <button onclick="downloadFile('${f.filename}')"><i class="fas fa-download"></i></button>
+    </div>
+  `);
+}
+
+function downloadFile(filename){ window.location.href=`${API}/download/${username}/${filename}`; }
+function logout(){ localStorage.removeItem("username"); location.href="login.html"; }
+
+loadFiles();
+</script>
+
+</body>
+</html>

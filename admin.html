@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DocSec — Admin Dashboard</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+<style>
+:root {
+  --primary: #4361ee;
+  --secondary: #3a0ca3;
+  --success: #4cc9f0;
+  --warning: #f72585;
+  --dark: #1a1a2e;
+  --gray: #6c757d;
+}
+
+* {
+  margin: 0; padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, #0f0c29, #24243e, #1a1a2e);
+  color: white;
+  min-height: 100vh;
+}
+
+.nav {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  padding: 18px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+  background: rgba(255,255,255,0.15);
+  color: white;
+}
+button:hover {
+  background: rgba(255,255,255,0.3);
+  transform: translateY(-2px);
+}
+
+.container {
+  max-width: 1100px;
+  margin: 35px auto;
+  padding: 0 20px;
+}
+
+.box {
+  background: rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 25px;
+  margin-bottom: 28px;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 6px 25px rgba(0,0,0,0.25);
+}
+
+.box h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+  color: var(--success);
+  border-bottom: 2px solid rgba(76,201,240,0.35);
+  padding-bottom: 6px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+}
+
+th {
+  background: rgba(76,201,240,0.25);
+  color: white;
+}
+
+tr:nth-child(even) {
+  background: rgba(255,255,255,0.05);
+}
+
+.badge {
+  background: rgba(76,201,240,0.12);
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  display: inline-flex;
+  gap: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="nav">
+  <div class="brand"><i class="fas fa-user-shield"></i> DOCSEC — Admin Panel</div>
+  <div>
+    <button onclick="exportLogs()"><i class="fas fa-file-export"></i> Export Logs</button>
+    <button style="background: var(--warning);" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="box">
+    <h2><i class="fas fa-folder-open"></i> Uploaded Documents</h2>
+    <table id="filesTable">
+      <tr>
+        <th>User</th><th>Filename</th><th>Type</th><th>Confidence</th><th>Source</th><th>Time</th>
+      </tr>
+    </table>
+  </div>
+
+  <div class="box">
+    <h2><i class="fas fa-list"></i> Login Activity</h2>
+    <table id="logsTable">
+      <tr><th>User</th><th>Time</th></tr>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+
+const ICON_MAP = {
+  "resume":"🧑‍💼","certificate":"🎓","bill":"🧾","invoice":"🧾","receipt":"🧾",
+  "novel":"📖","official letter":"📜","id document":"🪪","contract":"✍️",
+  "report":"📄","article":"📰","unknown":"📁"
+};
+
+function badgeHtml(type){
+  const ico = ICON_MAP[type.toLowerCase()] || "📁";
+  return `<span class="badge">${ico} ${type}</span>`;
+}
+
+function logout(){ localStorage.removeItem("username"); location.href="login.html"; }
+function exportLogs(){ window.location.href = API + "/admin/export"; }
+
+async function loadFiles(){
+  const res = await fetch(API + "/admin/files");
+  const data = await res.json();
+  const t = document.getElementById("filesTable");
+  data.forEach(row=>{
+    t.innerHTML += `
+      <tr>
+        <td>${row.user}</td>
+        <td>${row.filename}</td>
+        <td>${badgeHtml(row.type || "unknown")}</td>
+        <td>${row.type_confidence ? Math.round(row.type_confidence*100) + "%" : ""}</td>
+        <td>${row.type_source || ""}</td>
+        <td>${row.time}</td>
+      </tr>`;
+  });
+}
+
+async function loadLogs(){
+  const res = await fetch(API + "/admin/logs");
+  const data = await res.json();
+  const t = document.getElementById("logsTable");
+  data.forEach(l=>{
+    t.innerHTML += `<tr><td>${l.user}</td><td>${l.time}</td></tr>`;
+  });
+}
+
+loadFiles();
+loadLogs();
+</script>
+
+</body>
+</html>
